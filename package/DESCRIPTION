@@ -1,0 +1,10 @@
+Package: stache
+Type: Package
+Title: stache
+Version: 1.9
+Date: 2015-07-11
+Author: E. Castedo Ellerman
+Maintainer: <castedo@castedo.com>
+Description: Series in Time Aggregator Cache Hierarchically Enquired
+Depends: methods, zoo
+License: Unlimited
