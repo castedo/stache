@@ -1,8 +1,8 @@
 Package: stache
 Type: Package
 Title: stache
-Version: 2.0
-Date: 2015-07-11
+Version: 2.1
+Date: 2016-05-04
 Author: E. Castedo Ellerman
 Maintainer: <castedo@castedo.com>
 Description: Series in Time Aggregator Cache Hierarchically Enquired

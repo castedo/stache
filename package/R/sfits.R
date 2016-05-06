@@ -160,7 +160,8 @@ SfitsCachedRead <- function( symbol, field, start, end, func, cache.dir ) {
 
   path <- SfitsFilePath(symbol, field, cache.dir)
   ret <- SfitsReadCache(path)
-  if (!file.exists(path) || as.Date(file.mtime(path)) < end) {
+  up.to.date <- min(c(Sys.Date(), as.Date(end) + 1))
+  if (!file.exists(path) || as.Date(file.mtime(path)) < up.to.date) {
     start.more <- if (is.null(ret)) NULL else stats::end(ret)
     if ( is.null(start.more) || start.more < end ) {
       more <- func(symbol, field, start.more, end)
