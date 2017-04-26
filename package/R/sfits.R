@@ -241,7 +241,7 @@ paste.yahoo.url = function( ticker, start, end, divs_only=FALSE )
   s = as.POSIXlt(start)
   e = as.POSIXlt(end)
   paste( sep="",
-    "http://ichart.finance.yahoo.com/table.csv?s=", ticker,
+    "https://chart.finance.yahoo.com/table.csv?s=", ticker,
     "&a=", s$mon, "&b=", s$mday, "&c=", s$year + 1900,
     "&d=", e$mon, "&e=", e$mday, "&f=", e$year + 1900,
     "&g=", ifelse( divs_only, "v", "d" ),
