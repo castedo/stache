@@ -185,7 +185,7 @@ SfitsCachizer <- function( source.func, data.source.name ) {
 ########################
 ## Yahoo Data Functions
 
-GetYahooData <- function( symbol, field, start=NULL, end )
+GetStooqData <- function( symbol, field, start=NULL, end )
 {
   if (is.null(start)) {
     start <- as.Date("1950-01-01")
@@ -196,78 +196,41 @@ GetYahooData <- function( symbol, field, start=NULL, end )
                      high="High",
                      low="Low",
                      close="Close",
-                     volume="Volume",
-                     adjclose="Adj.Close",
-                     dividend="Dividends",
-                     prediv="Dividends" )
+                     volume="Volume")
   if (is.null(colname)) {
-    warning("Field '", field, "' is not available from Yahoo!")
+    warning("Field '", field, "' is not available from Stooq!")
     return(NULL)
   }
-  divflag <- field %in% c("dividend", "prediv")
-  url <- paste.yahoo.url( symbol, start, end, divflag )
+  url <- paste.stooq.url( symbol, start, end )
   z <- GetWebCsvZoo(url) 
   if (is.null(z)) {
     ret <- NULL
   } else {
-    if (divflag) {
-      # HACK: because cache.id is not known, no cache is getting used
-      close <- GetYahooData(symbol, 'close', start=start, end=end)
-      if (NROW(z) > 0) {
-        nz <- names(z)
-        z <- merge(z, zoo(,time(close)), fill=0)
-        names(z) <- nz  # work around 1.7-6 bug 
-      } else {
-        z <- zoo(0, time(close))
-      }
-    }
-    if (field=="prediv") {
-      z <- lag(z)
-    }
     ret <- z[,colname]
   }
-  # round in case Yahoo .csv has rounding error
-  # to basis points if divs or cents otherwise
-  ret <- round(ret, ifelse(divflag, 4, 2))
   return(ret)
 }
 
-ReadYahooData <- SfitsCachizer( GetYahooData, "yahoo" )
+ReadYahooData <- SfitsCachizer( GetStooqData, "stooq" )
 
-paste.yahoo.url = function( ticker, start, end, divs_only=FALSE )
+paste.stooq.url = function( ticker, start, end )
 {
   stopifnot( is.character(ticker) )
-  stopifnot( is.logical(divs_only) )
   s = as.POSIXlt(start)
   e = as.POSIXlt(end)
   paste( sep="",
-    "https://chart.finance.yahoo.com/table.csv?s=", ticker,
-    "&a=", s$mon, "&b=", s$mday, "&c=", s$year + 1900,
-    "&d=", e$mon, "&e=", e$mday, "&f=", e$year + 1900,
-    "&g=", ifelse( divs_only, "v", "d" ),
-    "&ignore=.csv" )
+    "https://stooq.com/q/d/l/?s=", ticker,
+    "&d1=", format(s, "%Y%m%d"),
+    "&d2=", format(e, "%Y%m%d"),
+    "&i=d")
 }
 
-get.yahoo.prices = function( ticker, start="2000-01-01", adjust=TRUE )
+get.stooq.prices = function( ticker, start="2000-01-01", adjust=TRUE )
 {
-  url = paste.yahoo.url( ticker, start, Sys.Date() )
+  url = paste.stooq.url( ticker, start, Sys.Date() )
   d = read.csv( url )
   if (adjust) { zoo( d$Adj.Close, as.Date(d$Date) ) }
   else { zoo( d$Close, as.Date(d$Date) ) }
-}
-
-get.yahoo.opens = function( ticker, start="2000-01-01" )
-{
-  url = paste.yahoo.url( ticker, start, Sys.Date() )
-  d = read.csv( url )
-  zoo( d$Open, as.Date(d$Date) )
-}
-
-get.yahoo.divs = function( ticker, start="2000-01-01" )
-{
-  url = paste.yahoo.url( ticker, start, Sys.Date(), TRUE )
-  d = read.csv( url )
-  zoo( d$Dividends, as.Date(d$Date) )
 }
 
 ###########################################################
@@ -501,7 +464,7 @@ stache.read <- function( tsips, cache.id, trim=TRUE ) {
     symbol = parts[5]
     field = parts[6]
     valids <- c('OPEN', 'HIGH', 'LOW', 'CLOSE',
-                'VOLUME', 'ADJCLOSE', 'DIVIDEND', 'PREDIV', 'NAV')
+                'VOLUME', 'NAV')
     if (!(field %in% valids)) {
       warning( "Field '", field, "' must be replaced with one of:\n",
                paste(collapse="\n", valids) )
