@@ -1,7 +1,4 @@
 export(LastUTCWeekday)
-export(get.yahoo.prices)
-export(get.yahoo.opens)
-export(get.yahoo.divs)
 export(set.alphavantage.key)
 export(get.html)
 export(parse.html.elements)
