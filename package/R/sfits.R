@@ -1,4 +1,10 @@
 
+dataEnv <- new.env()
+
+set.alphavantage.key <- function(key) {
+  assign("alphavantage.key", key, envir=dataEnv)
+}
+
 LastUTCWeekday <- function( d=Sys.time() ) {  #as.Date(Sys.time()) is UTC
   lastUTC <- as.Date(d) - 1
   mon_offset <- ( as.numeric(strftime(lastUTC, "%w")) - 1 ) %% 7
@@ -270,6 +276,52 @@ get.yahoo.divs = function( ticker, start="2000-01-01" )
   zoo( d$Dividends, as.Date(d$Date) )
 }
 
+########################
+## AlphaVantage Data Functions
+
+paste.alphavantage.url = function( ticker, adjusted=FALSE, compact=TRUE )
+{
+  stopifnot( is.character(ticker) )
+  stopifnot( is.logical(compact) )
+  paste( sep="",
+    "https://www.alphavantage.co/query",
+    "?function=TIME_SERIES_DAILY", ifelse(adjusted, "_ADJUSTED", ""),
+    "&symbol=", ticker,
+    "&apikey=", get("alphavantage.key", envir=dataEnv),
+    "&outputsize=", ifelse(compact, "compact", "full"),
+    "&datatype=csv" )
+}
+
+get.alphavantage.data  <- function( symbol, field, start=NULL, end )
+{
+  field <- tolower(field)
+  colname <- switch( field,
+                     open="open",
+                     high="high",
+                     low="low",
+                     close="close",
+                     volume="volume",
+                     adjclose="adjusted_close",
+                     dividend="dividend_amount",
+                     unsplit="split_coefficient" )
+  if (is.null(colname)) {
+    warning("Field '", field, "' is not available from Alpha Vantage!")
+    return(NULL)
+  }
+  adjflag <- field %in% c("adjclose", "dividend", "unsplit")
+  compact <- !is.null(start) && ((Sys.Date() - start) < 130)
+  url <- paste.alphavantage.url(symbol, adjusted=adjflag, compact=compact)
+  z <- GetWebCsvZoo(url, header.regex="^timestamp,") 
+  if (is.null(z)) {
+    ret <- NULL
+  } else {
+    ret <- window(z[,colname], start=start, end=end)
+  }
+  return(ret)
+}
+
+read.alphavantage.data <- SfitsCachizer( get.alphavantage.data, "alpha" )
+
 ###########################################################
 ## Useful HTML scraping functions
 
@@ -501,7 +553,7 @@ stache.read <- function( tsips, cache.id, trim=TRUE ) {
     symbol = parts[5]
     field = parts[6]
     valids <- c('OPEN', 'HIGH', 'LOW', 'CLOSE',
-                'VOLUME', 'ADJCLOSE', 'DIVIDEND', 'PREDIV', 'NAV')
+                'VOLUME', 'ADJCLOSE', 'DIVIDEND', 'NAV')
     if (!(field %in% valids)) {
       warning( "Field '", field, "' must be replaced with one of:\n",
                paste(collapse="\n", valids) )
@@ -510,7 +562,7 @@ stache.read <- function( tsips, cache.id, trim=TRUE ) {
     field = tolower(field)
     func <- switch( field,
                     nav=ReadNavs,
-                    ReadYahooData )  #default
+                    read.alphavantage.data )  #default
     col <- func(symbol, field, start, end, cache.id)
     if (is.null(col)) {
       return(NULL)
