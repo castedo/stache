@@ -264,6 +264,8 @@ get.alphavantage.data  <- function( symbol, field, start=NULL, end )
   adjflag <- field %in% c("adjclose", "dividend", "unsplit")
   compact <- !is.null(start) && ((Sys.Date() - start) < 130)
   url <- paste.alphavantage.url(symbol, adjusted=adjflag, compact=compact)
+  message("Sleeping ", 15, " seconds ...")
+  Sys.sleep(15)
   z <- GetWebCsvZoo(url, header.regex="^timestamp,") 
   if (is.null(z)) {
     ret <- NULL
