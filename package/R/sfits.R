@@ -24,12 +24,8 @@ is.pending <- function(z) {
 
 WebTempFile <- function(url, ...) {
   ret <- tempfile()
-  method <- "auto"
-  if (substr(url, 1, 6) == "https:") {
-    method <- "wget"
-  }
   message("Getting ", url, " ...")
-  if ( 0 != tryCatch( download.file(url, ret, method, ...),
+  if ( 0 != tryCatch( download.file(url, ret, ...),
                       error=function(e){1} ) ) {
     unlink(ret)
     ret <- NULL
@@ -189,12 +185,12 @@ SfitsCachizer <- function( source.func, data.source.name ) {
 
 
 ########################
-## Stooq Data Functions
+## Yahoo Data Functions
 
-GetStooqData <- function( symbol, field, start=NULL, end )
+GetYahooData <- function( symbol, field, start=NULL, end )
 {
   if (is.null(start)) {
-    start <- as.Date("1950-01-01")
+    start <- as.Date("1970-01-01")
   }
   field <- tolower(field)
   colname <- switch( field,
@@ -202,32 +198,69 @@ GetStooqData <- function( symbol, field, start=NULL, end )
                      high="High",
                      low="Low",
                      close="Close",
-                     volume="Volume")
+                     volume="Volume",
+                     adjclose="Adj.Close",
+                     dividend="Dividends")
   if (is.null(colname)) {
-    warning("Field '", field, "' is not available from Stooq!")
+    warning("Field '", field, "' is not available from Yahoo!")
     return(NULL)
   }
-  url <- paste.stooq.url( symbol, start, end )
+  divflag <- field %in% c("dividend")
+  url <- paste.yahoo.url( symbol, start, end, divflag )
   z <- GetWebCsvZoo(url) 
   if (is.null(z)) {
     ret <- NULL
   } else {
+    if (divflag) {
+      # HACK: because cache.id is not known, no cache is getting used
+      close <- GetYahooData(symbol, 'close', start=start, end=end)
+      if (NROW(z) > 0) {
+        nz <- names(z)
+        z <- merge(z, zoo(,time(close)), fill=0)
+        names(z) <- nz  # work around 1.7-6 bug
+      } else {
+        z <- zoo(0, time(close))
+      }
+    }
     ret <- z[,colname]
   }
+  # round in case Yahoo .csv has rounding error
+  # to basis points if divs or cents otherwise
+  ret <- round(ret, ifelse(divflag, 4, 2))
   return(ret)
 }
 
-paste.stooq.url = function( ticker, start, end )
+ReadYahooData <- SfitsCachizer( GetYahooData, "yahoo" )
+
+paste.yahoo.url = function( ticker, start, end, divs_only=FALSE )
 {
   stopifnot( is.character(ticker) )
-  s = as.POSIXlt(start)
-  e = as.POSIXlt(end)
+  stopifnot( is.logical(divs_only) )
+  # yahoo periods are seconds since 1970 UTC
   paste( sep="",
-    "https://stooq.com/q/d/l/?s=", ticker,
-    "&d1=", format(s, "%Y%m%d"),
-    "&d2=", format(e, "%Y%m%d"),
-    "&i=d")
+    "https://query1.finance.yahoo.com/v7/finance/download/", ticker,
+    "?period1=", as.numeric(as.Date(start))*24*3600,
+    "&period2=", as.numeric(as.Date(end))*24*3600,
+    "&interval=1d",
+    "&events=", ifelse(divs_only, "div", "history"),
+    "&includeAdjustedClose=true")
 }
+
+get.yahoo.prices = function( ticker, start="2000-01-01", adjust=TRUE )
+{
+  url = paste.yahoo.url( ticker, start, Sys.Date() )
+  d = read.csv( url )
+  if (adjust) { zoo( d$Adj.Close, as.Date(d$Date) ) }
+  else { zoo( d$Close, as.Date(d$Date) ) }
+}
+
+get.yahoo.divs = function( ticker, start="2000-01-01" )
+{
+  url = paste.yahoo.url( ticker, start, Sys.Date(), TRUE )
+  d = read.csv( url )
+  zoo( d$Dividends, as.Date(d$Date) )
+}
+
 
 ########################
 ## AlphaVantage Data Functions
@@ -517,7 +550,7 @@ stache.read <- function( tsips, cache.id, trim=TRUE ) {
     field = tolower(field)
     func <- switch( field,
                     nav=ReadNavs,
-                    read.alphavantage.data )  #default
+                    ReadYahooData )  #default
     col <- func(symbol, field, start, end, cache.id)
     if (is.null(col)) {
       return(NULL)
